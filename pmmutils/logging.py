@@ -249,7 +249,7 @@ class PMMLogger:
                     {
                         "title": f"{self.name}{title}",
                         "color": color,
-                        "timestamp": str(datetime.now())
+                        "timestamp": str(datetime.utcnow())
                     }
                 ],
                 "username": self.bot_name,
