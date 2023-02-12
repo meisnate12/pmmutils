@@ -1,6 +1,8 @@
-import logging, os, platform, psutil, sys
-import traceback
+import logging, os, platform, psutil, requests, sys, traceback
+from datetime import datetime
+from json import JSONDecodeError
 from logging.handlers import RotatingFileHandler
+from .exceptions import Failed
 
 logger = None
 
@@ -8,7 +10,7 @@ def my_except_hook(exctype, value, tb):
     if issubclass(exctype, KeyboardInterrupt):
         sys.__excepthook__(exctype, value, tb)
     elif logger:
-        logger.critical(f"Traceback (most recent call last):\n{traceback.format_tb(tb)[0]}{exctype.__name__}: {value}")
+        logger.critical(f"Traceback (most recent call last):\n{traceback.format_tb(tb)[0]}{exctype.__name__}: {value}", discord=True)
 
 class RedactingFormatter(logging.Formatter):
     _secrets = []
@@ -35,16 +37,15 @@ def fmt_filter(record):
     return True
 
 class PMMLogger:
-    def __init__(self, name, log_dir, log_file=None, screen_width=100, separating_character="=", filename_spacing=27, ignore_ghost=False, is_debug=True, is_trace=False, log_requests=False):
+    def __init__(self, name, log_name, log_dir, log_file=None, discord_url=None, ignore_ghost=False, is_debug=True, is_trace=False, log_requests=False):
         global logger
         logger = self
         sys.excepthook = my_except_hook
         self.name = name
+        self.log_name = log_name
         self.log_dir = log_dir
         self.log_file = log_file
-        self.screen_width = screen_width
-        self.separating_character = separating_character
-        self.filename_spacing = filename_spacing
+        self.discord_url = discord_url
         self.is_debug = is_debug
         self.is_trace = is_trace
         self.log_requests = log_requests
@@ -53,10 +54,16 @@ class PMMLogger:
         self.errors = {}
         self.criticals = {}
         self.spacing = 0
+        self.screen_width = 100
+        self.separating_character = "="
+        self.filename_spacing = 27
+        self.thumbnail_url = "https://github.com/meisnate12/Plex-Meta-Manager/raw/master/docs/_static/favicon.png"
+        self.bot_name = "Metabot"
+        self.bot_image_url = "https://github.com/meisnate12/Plex-Meta-Manager/raw/master/.github/pmm.png"
         if not self.log_file:
-            self.log_file = f"{self.name}.log"
+            self.log_file = f"{self.log_name}.log"
         os.makedirs(self.log_dir, exist_ok=True)
-        self._logger = logging.getLogger(None if self.log_requests else self.name)
+        self._logger = logging.getLogger(None if self.log_requests else self.log_name)
         self._logger.setLevel(logging.DEBUG)
         cmd_handler = logging.StreamHandler()
         cmd_handler.setLevel(logging.DEBUG if self.is_debug else logging.INFO)
@@ -152,41 +159,59 @@ class PMMLogger:
         else:
             self.info(msg, stacklevel=4)
 
-    def trace(self, msg="", center=False, stacklevel=2):
+    def trace(self, msg="", center=False, log=True, discord=False, stacklevel=2):
         if self.is_trace:
-            self.new__log(logging.NOTSET, msg, [], center=center, stacklevel=stacklevel)
+            if discord:
+                self.discord_request(" Trace", msg)
+            if log:
+                self.new__log(logging.NOTSET, msg, [], center=center, stacklevel=stacklevel)
 
-    def debug(self, msg="", center=False, stacklevel=2):
+    def debug(self, msg="", center=False, log=True, discord=False, stacklevel=2):
         if self._logger.isEnabledFor(logging.DEBUG):
-            self.new__log(logging.DEBUG, msg, [], center=center, stacklevel=stacklevel)
+            if discord:
+                self.discord_request(" Debug", msg)
+            if log:
+                self.new__log(logging.DEBUG, msg, [], center=center, stacklevel=stacklevel)
 
-    def info(self, msg="", center=False, stacklevel=2):
+    def info(self, msg="", center=False, log=True, discord=False, stacklevel=2):
         if self._logger.isEnabledFor(logging.INFO):
-            self.new__log(logging.INFO, msg, [], center=center, stacklevel=stacklevel)
+            if discord:
+                self.discord_request("", msg)
+            if log:
+                self.new__log(logging.INFO, msg, [], center=center, stacklevel=stacklevel)
 
-    def warning(self, msg="", center=False, group=None, ignore=False, stacklevel=2):
+    def warning(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, stacklevel=2):
         if self._logger.isEnabledFor(logging.WARNING):
             if not ignore:
                 if group not in self.warnings:
                     self.warnings[group] = []
                 self.warnings[group].append(msg)
-            self.new__log(logging.WARNING, msg, [], center=center, stacklevel=stacklevel)
+            if discord:
+                self.discord_request(" Warning", msg, color=0xbc0030)
+            if log:
+                self.new__log(logging.WARNING, msg, [], center=center, stacklevel=stacklevel)
 
-    def error(self, msg="", center=False, group=None, ignore=False, stacklevel=2):
+    def error(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, stacklevel=2):
         if self._logger.isEnabledFor(logging.ERROR):
             if not ignore:
                 if group not in self.errors:
                     self.errors[group] = []
                 self.errors[group].append(msg)
-            self.new__log(logging.ERROR, msg, [], center=center, stacklevel=stacklevel)
+            if discord:
+                self.discord_request(" Error", msg, color=0xbc0030)
+            if log:
+                self.new__log(logging.ERROR, msg, [], center=center, stacklevel=stacklevel)
 
-    def critical(self, msg="", center=False, group=None, ignore=False, exc_info=None, stacklevel=2):
+    def critical(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, exc_info=None, stacklevel=2):
         if self._logger.isEnabledFor(logging.CRITICAL):
             if not ignore:
                 if group not in self.criticals:
                     self.criticals[group] = []
                 self.criticals[group].append(msg)
-            self.new__log(logging.CRITICAL, msg, [], center=center, exc_info=exc_info, stacklevel=stacklevel)
+            if discord:
+                self.discord_request(" Critical Failure", msg, color=0xbc0030)
+            if log:
+                self.new__log(logging.CRITICAL, msg, [], center=center, exc_info=exc_info, stacklevel=stacklevel)
 
     def stacktrace(self, trace=False):
         self.print(traceback.format_exc(), debug=not trace, trace=trace)
@@ -217,7 +242,33 @@ class PMMLogger:
         if text and str(text) not in RedactingFormatter.secrets:
             RedactingFormatter.secrets.append(str(text))
 
-    def header(self, pmm_args, name=None):
+    def discord_request(self, title, description, color=0x00bc8c):
+        if self.discord_url:
+            json = {
+                "embeds": [
+                    {
+                        "title": f"{self.name}{title}",
+                        "color": color,
+                        "description": description,
+                        "timestamp": str(datetime.now())
+                    }
+                ],
+                "username": self.bot_name,
+                "avatar_url": self.bot_image_url
+            }
+            if self.thumbnail_url:
+                json["embeds"][0]["thumbnail"] = {"url": self.thumbnail_url, "height": 0, "width": 0}
+            response = requests.post(self.discord_url, json=json)
+            if response:
+                try:
+                    response_json = response.json()
+                    if response.status_code >= 400:
+                        raise Failed(f"({response.status_code} [{response.reason}]) {response_json}")
+                except JSONDecodeError:
+                    if response.status_code >= 400:
+                        raise Failed(f"({response.status_code} [{response.reason}])")
+
+    def header(self, pmm_args, sub=False):
         self.separator()
         self.info(self._centered(" ____  _             __  __      _          __  __                                   "))
         self.info(self._centered("|  _ \\| | _____  __ |  \\/  | ___| |_ __ _  |  \\/  | __ _ _ __   __ _  __ _  ___ _ __ "))
@@ -225,8 +276,8 @@ class PMMLogger:
         self.info(self._centered("|  __/| |  __/>  <  | |  | |  __/ || (_| | | |  | | (_| | | | | (_| | (_| |  __/ |   "))
         self.info(self._centered("|_|   |_|\\___/_/\\_\\ |_|  |_|\\___|\\__\\__,_| |_|  |_|\\__,_|_| |_|\\__,_|\\__, |\\___|_|   "))
         self.info(self._centered("                                                                     |___/           "))
-        if name:
-            self.info(self._centered(name))
+        if sub:
+            self.info(self._centered(self.name))
 
         self.info(f"    Version: {pmm_args.local_version} {pmm_args.system_version}")
         if pmm_args.update_version:
