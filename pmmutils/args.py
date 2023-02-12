@@ -67,6 +67,7 @@ class PMMArgs:
         self.options = options
         self.use_nightly = use_nightly
         self.is_nightly = is_nightly
+        self.original_choices = {}
         self.choices = {}
         self._nightly_version = None
         self._develop_version = None
@@ -98,12 +99,17 @@ class PMMArgs:
         load_dotenv(os.path.join(self.base_dir, "config", ".env"))
 
         for o in self.options:
-            self.choices[o["key"]] = parse_choice(o["env"], getattr(args_parsed, o["key"]), arg_int=o["type"] == "int", arg_bool=o["type"] == "bool")
+            value = parse_choice(o["env"], getattr(args_parsed, o["key"]), arg_int=o["type"] == "int", arg_bool=o["type"] == "bool")
+            self.original_choices[o["key"]] = value
+            self.choices[o["key"]] = value
 
     def __getitem__(self, key):
         if key in self.choices:
             return self.choices[key]
         raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        self.choices[key] = value
 
     @property
     def uuid(self):
