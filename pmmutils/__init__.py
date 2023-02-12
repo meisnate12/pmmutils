@@ -1,6 +1,6 @@
 import pkg_resources
 from . import util
-from .logger import PMMLogger
+from .logging import PMMLogger
 from .args import PMMArgs, Version
 from .exceptions import Continue, Deleted, Failed, FilterFailed, LimitReached, NonExisting, NotScheduled, NotScheduledRange, TimeoutExpired
 
