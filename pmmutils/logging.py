@@ -69,7 +69,7 @@ class PMMLogger:
         cmd_handler.setLevel(logging.DEBUG if self.is_debug else logging.INFO)
         self._formatter(handler=cmd_handler)
         self._logger.addHandler(cmd_handler)
-        main_handler = self._add_handler(self.log_file, count=9)
+        main_handler = self._add_handler(os.path.join(self.log_dir, self.log_file), count=9)
         main_handler.addFilter(fmt_filter)
         self._logger.addHandler(main_handler)
         self.old__log = self._logger._log
@@ -159,57 +159,57 @@ class PMMLogger:
         else:
             self.info(msg, stacklevel=4)
 
-    def trace(self, msg="", center=False, log=True, discord=False, stacklevel=2):
+    def trace(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=2):
         if self.is_trace:
             if discord:
-                self.discord_request(" Trace", msg)
+                self.discord_request(" Trace", msg, rows=rows)
             if log:
                 self.new__log(logging.NOTSET, msg, [], center=center, stacklevel=stacklevel)
 
-    def debug(self, msg="", center=False, log=True, discord=False, stacklevel=2):
+    def debug(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=2):
         if self._logger.isEnabledFor(logging.DEBUG):
             if discord:
-                self.discord_request(" Debug", msg)
+                self.discord_request(" Debug", msg, rows=rows)
             if log:
                 self.new__log(logging.DEBUG, msg, [], center=center, stacklevel=stacklevel)
 
-    def info(self, msg="", center=False, log=True, discord=False, stacklevel=2):
+    def info(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=2):
         if self._logger.isEnabledFor(logging.INFO):
             if discord:
-                self.discord_request("", msg)
+                self.discord_request("", msg, rows=rows)
             if log:
                 self.new__log(logging.INFO, msg, [], center=center, stacklevel=stacklevel)
 
-    def warning(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, stacklevel=2):
+    def warning(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=2):
         if self._logger.isEnabledFor(logging.WARNING):
             if not ignore:
                 if group not in self.warnings:
                     self.warnings[group] = []
                 self.warnings[group].append(msg)
             if discord:
-                self.discord_request(" Warning", msg, color=0xbc0030)
+                self.discord_request(" Warning", msg, rows=rows, color=0xbc0030)
             if log:
                 self.new__log(logging.WARNING, msg, [], center=center, stacklevel=stacklevel)
 
-    def error(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, stacklevel=2):
+    def error(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=2):
         if self._logger.isEnabledFor(logging.ERROR):
             if not ignore:
                 if group not in self.errors:
                     self.errors[group] = []
                 self.errors[group].append(msg)
             if discord:
-                self.discord_request(" Error", msg, color=0xbc0030)
+                self.discord_request(" Error", msg, rows=rows, color=0xbc0030)
             if log:
                 self.new__log(logging.ERROR, msg, [], center=center, stacklevel=stacklevel)
 
-    def critical(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, exc_info=None, stacklevel=2):
+    def critical(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, exc_info=None, stacklevel=2):
         if self._logger.isEnabledFor(logging.CRITICAL):
             if not ignore:
                 if group not in self.criticals:
                     self.criticals[group] = []
                 self.criticals[group].append(msg)
             if discord:
-                self.discord_request(" Critical Failure", msg, color=0xbc0030)
+                self.discord_request(" Critical Failure", msg, rows=rows, color=0xbc0030)
             if log:
                 self.new__log(logging.CRITICAL, msg, [], center=center, exc_info=exc_info, stacklevel=stacklevel)
 
@@ -242,22 +242,36 @@ class PMMLogger:
         if text and str(text) not in RedactingFormatter.secrets:
             RedactingFormatter.secrets.append(str(text))
 
-    def discord_request(self, title, description, color=0x00bc8c):
+    def discord_request(self, title, description, rows=None, color=0x00bc8c):
         if self.discord_url:
             json = {
                 "embeds": [
                     {
                         "title": f"{self.name}{title}",
                         "color": color,
-                        "description": description,
                         "timestamp": str(datetime.now())
                     }
                 ],
                 "username": self.bot_name,
                 "avatar_url": self.bot_image_url
             }
+            if description:
+                json["embeds"][0]["description"] = description
             if self.thumbnail_url:
                 json["embeds"][0]["thumbnail"] = {"url": self.thumbnail_url, "height": 0, "width": 0}
+
+            if rows:
+                fields = []
+                for row in rows:
+                    for col in row:
+                        col_name, col_value = col
+                        field = {"name": col_name}
+                        if col_value:
+                            field["value"] = col_value
+                        if len(row) > 1:
+                            field["inline"] = True
+                        fields.append(field)
+                json["embeds"][0]["fields"] = fields
             response = requests.post(self.discord_url, json=json)
             if response:
                 try:

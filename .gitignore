@@ -9,6 +9,7 @@ __pycache__/
 # Distribution / packaging
 .idea
 .Python
+config
 test.py
 how to build.txt
 build/
