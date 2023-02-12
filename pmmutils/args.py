@@ -100,6 +100,11 @@ class PMMArgs:
         for o in self.options:
             self.choices[o["key"]] = parse_choice(o["env"], getattr(args_parsed, o["key"]), arg_int=o["type"] == "int", arg_bool=o["type"] == "bool")
 
+    def __getitem__(self, key):
+        if key in self.options:
+            return self.options[key]
+        raise KeyError(key)
+
     @property
     def uuid(self):
         if self._uuid is None:
