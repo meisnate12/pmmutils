@@ -1,0 +1,5 @@
+GitPython==3.1.30
+pathvalidate==2.5.2
+psutil==5.9.4
+python-dotenv==0.21.1
+requests==2.28.2
