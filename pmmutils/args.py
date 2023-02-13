@@ -31,7 +31,8 @@ class Version:
         split_version = self.version.split(f"-{self.text}")
         self.master = split_version[0]
         self.patch = int(split_version[1]) if len(split_version) > 1 else 0
-        sep = (0, 0, 0) if self.original == "Unknown" else self.master.split(".")
+        sp = self.master.split(".")
+        sep = (0, 0, 0) if self.original == "Unknown" or len(sp) < 3 else sp
         self.compare = (sep[0], sep[1], sep[2], self.patch)
         self._has_patch = None
 
@@ -192,10 +193,12 @@ class PMMArgs:
 
     def online_version(self, level):
         try:
-            url = f"https://raw.githubusercontent.com/{self.repo}/{level}/VERSION"
-            return Version(requests.get(url).content.decode().strip(), text=level)
+            response = requests.get(f"https://raw.githubusercontent.com/{self.repo}/{level}/VERSION")
+            if response.status_code < 400:
+                return Version(response.content.decode().strip(), text=level)
         except requests.exceptions.ConnectionError:
-            return Version
+            pass
+        return Version()
 
     @cached_property
     def version(self):
