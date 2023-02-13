@@ -24,7 +24,7 @@ setup(
     author_email=pmmutils.__email__,
     license=pmmutils.__license__,
     packages=find_packages(),
-    python_requires=">=3.7",
+    python_requires=">=3.10",
     keywords=["pmmutils"],
     install_requires=[
         "GitPython",
@@ -44,9 +44,6 @@ setup(
         "Intended Audience :: Developers",
         "Topic :: Software Development :: Libraries",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ]

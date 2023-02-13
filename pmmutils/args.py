@@ -1,5 +1,7 @@
-import argparse, os, platform, requests, uuid
+import argparse, os, platform, re, requests, uuid
 from dotenv import load_dotenv
+from functools import cached_property
+from .exceptions import Failed
 
 def parse_choice(env_str, default, arg_bool=False, arg_int=False):
     env_value = os.environ.get(env_str)
@@ -33,6 +35,9 @@ class Version:
         self.compare = (sep[0], sep[1], sep[2], self.patch)
         self._has_patch = None
 
+    def same_master(self, other):
+        return self.master == other.master
+
     def has_patch(self):
         return self.patch > 0
 
@@ -61,27 +66,14 @@ class Version:
         return self.compare >= other.compare
 
 class PMMArgs:
-    def __init__(self, repo_name, base_dir, options, use_nightly=True, is_nightly=False):
+    def __init__(self, repo_name, base_dir, options, use_nightly=True, running_nightly=False):
         self.repo = repo_name
         self.base_dir = base_dir
         self.options = options
         self.use_nightly = use_nightly
-        self.is_nightly = is_nightly
+        self.running_nightly = running_nightly
         self.original_choices = {}
         self.choices = {}
-        self._nightly_version = None
-        self._develop_version = None
-        self._master_version = None
-        self._system_version = None
-        self._update_version = None
-        self._local_version = None
-        self._version = None
-        self._local_branch = None
-        self._env_branch = None
-        self._branch = None
-        self._is_docker = None
-        self._is_linuxserver = None
-        self._uuid = None
         parser = argparse.ArgumentParser()
         if not isinstance(options, list):
             raise ValueError("options must be a list")
@@ -111,136 +103,148 @@ class PMMArgs:
     def __setitem__(self, key, value):
         self.choices[key] = value
 
-    @property
+    def _github_request(self, path, repo=None, params=None):
+        response = requests.get(f"https://api.github.com/repos/{repo or self.repo}/{path}", params=params)
+        if response.status_code >= 400:
+            raise Failed(f"({response.status_code} [{response.reason}]) {response.json()}")
+        return response.json()
+
+    def git_release_notes(self, repo=None):
+        return self._github_request("releases/latest", repo=repo)["body"]
+
+    def git_commits(self, repo=None):
+        master_sha = self._github_request("commits/master", repo=repo)["sha"]
+        commits = []
+        for commit in self._github_request("commits", repo=repo, params={"sha": "nightly" if self.is_nightly else "develop"}):
+            if commit["sha"] == master_sha:
+                break
+            message = commit["commit"]["message"]
+            match = re.match("^\\[(\\d)\\]", message)
+            if match and int(match.group(1)) <= self.local_version.patch:
+                break
+            commits.append(message)
+        return "\n".join(commits)
+
+    def git_tags(self, repo=None):
+        return [r["ref"][11:] for r in self._github_request("git/refs/tags", repo=repo)]
+
+    @cached_property
+    def update_notes(self):
+        if self.update_version and self.local_version:
+            if not self.update_version.same_master(self.local_version):
+                return self.git_release_notes()
+            elif self.local_version.patch and self.local_version < self.update_version:
+                return self.git_commits()
+        return None
+
+    @cached_property
     def uuid(self):
-        if self._uuid is None:
-            uuid_file = os.path.join(self.base_dir, "config", "UUID")
-            if os.path.exists(uuid_file):
-                with open(uuid_file) as handle:
-                    for line in handle.readlines():
-                        line = line.strip()
-                        if len(line) > 0:
-                            self._uuid = str(line)
-                            break
-            if not self._uuid:
-                self._uuid = str(uuid.uuid4())
-                with open(uuid_file, "w") as handle:
-                    handle.write(self._uuid)
-        return self._uuid
-
-    @property
-    def system_version(self):
-        if self._system_version is None:
-            if self.is_docker:
-                self._system_version = "Docker"
-            elif self.is_linuxserver:
-                self._system_version = "Linuxserver"
-            else:
-                self._system_version = f"Python {platform.python_version()}"
-            self._system_version = f"({self._system_version})"
-            if self.local_branch:
-                self._system_version = f"{self._system_version} (Git: {self.local_branch})"
-        return self._system_version
-
-    @property
-    def is_docker(self):
-        if self._is_docker is None:
-            self._is_docker = parse_choice("PMM_DOCKER", False, arg_bool=True)
-        return self._is_docker
-
-    @property
-    def is_linuxserver(self):
-        if self._is_linuxserver is None:
-            self._is_linuxserver = parse_choice("PMM_LINUXSERVER", False, arg_bool=True)
-        return self._is_linuxserver
-
-    @property
-    def local_version(self):
-        if self._local_version is None:
-            self._local_version = False
-            with open(os.path.join(self.base_dir, "VERSION")) as handle:
+        uuid_file = os.path.join(self.base_dir, "config", "UUID")
+        if os.path.exists(uuid_file):
+            with open(uuid_file) as handle:
                 for line in handle.readlines():
                     line = line.strip()
                     if len(line) > 0:
-                        self._local_version = Version(line)
-                        break
-        return None if self._local_version is False else self._local_version
+                        return str(line)
+        _uuid = str(uuid.uuid4())
+        with open(uuid_file, "w") as handle:
+            handle.write(_uuid)
+        return _uuid
 
-    @property
+    @cached_property
+    def system_version(self):
+        if self.is_docker:
+            return "(Docker)"
+        elif self.is_linuxserver:
+            return "(Linuxserver)"
+        else:
+            return f"(Python {platform.python_version()}){f' (Git: {self.local_branch})' if self.local_branch else ''}"
+
+    @cached_property
+    def is_docker(self):
+        return parse_choice("PMM_DOCKER", False, arg_bool=True)
+
+    @cached_property
+    def is_linuxserver(self):
+        return parse_choice("PMM_LINUXSERVER", False, arg_bool=True)
+
+    @cached_property
+    def local_version(self):
+        ver = Version()
+        with open(os.path.join(self.base_dir, "VERSION")) as handle:
+            for line in handle.readlines():
+                line = line.strip()
+                if len(line) > 0:
+                    ver = Version(line)
+        return ver
+
+    @cached_property
     def nightly_version(self):
-        if self._nightly_version is None:
-            self._nightly_version = self.online_version("nightly")
-        return self._nightly_version
+        return self.online_version("nightly")
 
-    @property
+    @cached_property
     def develop_version(self):
-        if self._develop_version is None:
-            self._develop_version = self.online_version("develop")
-        return self._nightly_version
+        return self.online_version("develop")
 
-    @property
+    @cached_property
     def master_version(self):
-        if self._master_version is None:
-            self._master_version = self.online_version("master")
-        return self._master_version
+        return self.online_version("master")
 
     def online_version(self, level):
         try:
             url = f"https://raw.githubusercontent.com/{self.repo}/{level}/VERSION"
             return Version(requests.get(url).content.decode().strip(), text=level)
         except requests.exceptions.ConnectionError:
+            return Version
+
+    @cached_property
+    def version(self):
+        match self.branch:
+            case "nightly":
+                return self.nightly_version
+            case "develop":
+                return self.develop_version
+            case _:
+                return self.master_version
+
+    @cached_property
+    def update_version(self):
+        return self.version if self.version and self.local_version < self.version else None
+
+    @cached_property
+    def local_branch(self):
+        try:
+            from git import Repo
+            return Repo(path=".").head.ref.name # noqa
+        except Exception:
             return None
 
-    @property
-    def version(self):
-        if self._version is None:
-            if self.branch == "nightly":
-                self._version = self.nightly_version
-            elif self.branch == "develop":
-                self._version = self.develop_version
-            else:
-                self._version = self.master_version
-        return self._version
-
-    @property
-    def local_branch(self):
-        if self._local_branch is None:
-            try:
-                from git import Repo, InvalidGitRepositoryError
-                try:
-                    self._local_branch = Repo(path=".").head.ref.name # noqa
-                except InvalidGitRepositoryError:
-                    self._local_branch = False
-            except ImportError:
-                self._local_branch = False
-        return None if self._local_branch is False else self._local_branch
-
-    @property
+    @cached_property
     def env_branch(self):
-        if self._env_branch is None:
-            self._env_branch = parse_choice("BRANCH_NAME", "master")
-        return self._env_branch
+        return parse_choice("BRANCH_NAME", "master")
 
-    @property
+    @cached_property
     def branch(self):
-        if self._branch is None:
-            if self.is_nightly:
-                self._branch = "nightly"
-            elif self.local_branch:
-                self._branch = self.local_branch
-            elif self.env_branch in ["nightly", "develop"]:
-                self._branch = self.env_branch
-            elif self.local_version.has_patch():
-                self._branch = "develop" if not self.use_nightly or self.local_version <= self.develop_version else "nightly"
-            else:
-                self._branch = "master"
-        return self._branch
+        if self.running_nightly:
+            return "nightly"
+        elif self.local_branch:
+            return self.local_branch
+        elif self.env_branch in ["nightly", "develop"]:
+            return self.env_branch
+        elif self.local_version.has_patch():
+            return "develop" if not self.use_nightly or self.local_version <= self.develop_version else "nightly"
+        else:
+            return "master"
 
-    @property
-    def update_version(self):
-        if self._update_version is None:
-            self._update_version = False
-            if self.version and self.local_version < self.version:
-                self._update_version = self.version
-        return None if self._update_version is False else self._update_version
+    @cached_property
+    def is_nightly(self):
+        return self.branch == "nightly"
+
+    @cached_property
+    def is_develop(self):
+        return self.branch == "develop"
+
+    @cached_property
+    def is_master(self):
+        return self.branch == "master"
 

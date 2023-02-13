@@ -272,8 +272,7 @@ class PMMLogger:
                             field["inline"] = True
                         fields.append(field)
                 json["embeds"][0]["fields"] = fields
-            response = requests.post(self.discord_url, json=json)
-            if response:
+            if response := requests.post(self.discord_url, json=json):
                 try:
                     response_json = response.json()
                     if response.status_code >= 400:
@@ -282,7 +281,7 @@ class PMMLogger:
                     if response.status_code >= 400:
                         raise Failed(f"({response.status_code} [{response.reason}])")
 
-    def header(self, pmm_args, sub=False):
+    def header(self, pmm_args, sub=False, discord_update=False):
         self.separator()
         self.info(self._centered(" ____  _             __  __      _          __  __                                   "))
         self.info(self._centered("|  _ \\| | _____  __ |  \\/  | ___| |_ __ _  |  \\/  | __ _ _ __   __ _  __ _  ___ _ __ "))
@@ -295,6 +294,11 @@ class PMMLogger:
 
         self.info(f"    Version: {pmm_args.local_version} {pmm_args.system_version}")
         if pmm_args.update_version:
+            if discord_update and self.discord_url:
+                self.warning("", log=False, discord=True, rows=[
+                    [("Current", str(pmm_args.local_version)), ("Latest", pmm_args.update_version)],
+                    [("Updates", pmm_args.update_notes)]
+                ])
             self.info(f"    Newest Version: {pmm_args.update_version}")
         self.info(f"    Platform: {platform.platform()}")
         self.info(f"    Memory: {round(psutil.virtual_memory().total / (1024.0 ** 3))} GB")
