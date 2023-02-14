@@ -1,4 +1,6 @@
 import glob, time, os, requests
+from datetime import datetime
+from functools import cached_property
 from pathvalidate import is_valid_filename, sanitize_filename
 from tqdm import tqdm
 from .exceptions import Failed
@@ -76,3 +78,52 @@ def copy_with_progress(src, dst, description=None):
                         break
                     fdst.write(chunk)
                     pbar.update(len(chunk))
+
+class Stats:
+    def __init__(self):
+        self.data = {None: Stat()}
+
+    def start(self, name=None):
+        self[name] = Stat()
+
+    def finish(self, name=None):
+        return self[name].end
+
+    def runtime(self, name=None):
+        return self[name].runtime
+
+    def stat(self, key, value, name=None):
+        self[name][key] = value
+
+    def __getitem__(self, name):
+        if name in self.data:
+            return self.data[name]
+        raise KeyError(name)
+
+    def __setitem__(self, key, value):
+        self.data[key] = value
+
+class Stat:
+    def __init__(self, name=None):
+        self.name = name
+        self.start = datetime.now()
+        self.stats = {}
+
+    def __getitem__(self, key):
+        if key in self.stats:
+            return self.stats[key]
+        raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        self.stats[key] = value
+
+    @cached_property
+    def end(self):
+        return datetime.now()
+
+    @cached_property
+    def runtime(self):
+        return str(self.end - self.start).split(".")[0]
+
+    def __str__(self):
+        return self.runtime
