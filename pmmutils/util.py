@@ -1,5 +1,6 @@
 import glob, time, os, requests
 from pathvalidate import is_valid_filename, sanitize_filename
+from tqdm import tqdm
 from .exceptions import Failed
 
 def update_send(old_send, timeout):
