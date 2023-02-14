@@ -31,7 +31,8 @@ setup(
         "pathvalidate",
         "psutil",
         "python-dotenv",
-        "requests"
+        "requests",
+        "tqdm"
     ],
     project_urls={
         "Documentation": "https://github.com/meisnate12/pmmutils",

@@ -169,74 +169,74 @@ class PMMLogger:
     def _trace(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=5):
         self.trace(msg=msg, center=center, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
 
-    def trace(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=2):
+    def trace(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=3):
         if self.is_trace:
-            if discord:
-                self.discord_request(" Trace", msg, rows=rows)
             if log:
                 self.new__log(logging.NOTSET, msg, [], center=center, stacklevel=stacklevel)
+            if discord:
+                self.discord_request(" Trace", msg, rows=rows)
 
     def _debug(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=5):
         self.debug(msg=msg, center=center, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
 
-    def debug(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=2):
+    def debug(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=3):
         if self._logger.isEnabledFor(logging.DEBUG):
-            if discord:
-                self.discord_request(" Debug", msg, rows=rows)
             if log:
                 self.new__log(logging.DEBUG, msg, [], center=center, stacklevel=stacklevel)
+            if discord:
+                self.discord_request(" Debug", msg, rows=rows)
 
     def _info(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=5):
         self.info(msg=msg, center=center, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
 
-    def info(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=2):
+    def info(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=3):
         if self._logger.isEnabledFor(logging.INFO):
-            if discord:
-                self.discord_request("", msg, rows=rows)
             if log:
                 self.new__log(logging.INFO, msg, [], center=center, stacklevel=stacklevel)
+            if discord:
+                self.discord_request("", msg, rows=rows)
 
     def _warning(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=5):
         self.warning(msg=msg, center=center, group=group, ignore=ignore, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
 
-    def warning(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=2):
+    def warning(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=3):
         if self._logger.isEnabledFor(logging.WARNING):
             if not ignore:
                 if group not in self.warnings:
                     self.warnings[group] = []
                 self.warnings[group].append(msg)
-            if discord:
-                self.discord_request(" Warning", msg, rows=rows, color=0xbc0030)
             if log:
                 self.new__log(logging.WARNING, msg, [], center=center, stacklevel=stacklevel)
+            if discord:
+                self.discord_request(" Warning", msg, rows=rows, color=0xbc0030)
 
     def _error(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=5):
         self.error(msg=msg, center=center, group=group, ignore=ignore, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
 
-    def error(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=2):
+    def error(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=3):
         if self._logger.isEnabledFor(logging.ERROR):
             if not ignore:
                 if group not in self.errors:
                     self.errors[group] = []
                 self.errors[group].append(msg)
-            if discord:
-                self.discord_request(" Error", msg, rows=rows, color=0xbc0030)
             if log:
                 self.new__log(logging.ERROR, msg, [], center=center, stacklevel=stacklevel)
+            if discord:
+                self.discord_request(" Error", msg, rows=rows, color=0xbc0030)
 
     def _critical(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=5):
         self.critical(msg=msg, center=center, group=group, ignore=ignore, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
 
-    def critical(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, exc_info=None, stacklevel=2):
+    def critical(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, exc_info=None, stacklevel=3):
         if self._logger.isEnabledFor(logging.CRITICAL):
             if not ignore:
                 if group not in self.criticals:
                     self.criticals[group] = []
                 self.criticals[group].append(msg)
-            if discord:
-                self.discord_request(" Critical Failure", msg, rows=rows, color=0xbc0030)
             if log:
                 self.new__log(logging.CRITICAL, msg, [], center=center, exc_info=exc_info, stacklevel=stacklevel)
+            if discord:
+                self.discord_request(" Critical Failure", msg, rows=rows, color=0xbc0030)
 
     def stacktrace(self, trace=False):
         self.print(traceback.format_exc(), debug=not trace, trace=trace)
@@ -297,14 +297,20 @@ class PMMLogger:
                             field["inline"] = True
                         fields.append(field)
                 json["embeds"][0]["fields"] = fields
-            if response := requests.post(self.discord_url, json=json):
-                try:
-                    response_json = response.json()
-                    if response.status_code >= 400:
-                        raise Failed(f"({response.status_code} [{response.reason}]) {response_json}")
-                except JSONDecodeError:
-                    if response.status_code >= 400:
-                        raise Failed(f"({response.status_code} [{response.reason}])")
+            try:
+                if response := requests.post(self.discord_url, json=json):
+                    try:
+                        response_json = response.json()
+                        if response.status_code >= 400:
+                            self.discord_url = None
+                            raise Failed(f"({response.status_code} [{response.reason}]) {response_json}")
+                    except JSONDecodeError:
+                        if response.status_code >= 400:
+                            self.discord_url = None
+                            raise Failed(f"({response.status_code} [{response.reason}])")
+            except requests.exceptions.RequestException:
+                self.discord_url = None
+                raise Failed(f"Discord URL Connection Failure")
 
     def header(self, pmm_args, sub=False, discord_update=False):
         self._separator()
@@ -334,21 +340,24 @@ class PMMLogger:
         for o in pmm_args.options:
             self._debug(f"--{o['key']} ({o['env']}): {pmm_args.choices[o['key']]}")
 
-    def error_report(self, title_only=False):
-        self._separator()
-        self._info("Error Report", center=True)
-        self._separator()
-        if not title_only and None in self.errors:
-            self._info()
-            self._info("Generic Errors: ")
-            for e in self.errors[None]:
-                self._error(f"  {e}", ignore=True)
-        for title, errs in self.errors.items():
-            if title is None:
-                continue
-            self._info()
-            self._info(f"{title} Errors: ")
-            for e in errs:
-                self._error(f"  {e}", ignore=True)
+    def report(self, title, items):
+        self._separator(title)
+        key_length = len(max(items, key=len))
+        for k, v in items.items():
+            self._info(f"{k:<{key_length}} | {v}")
 
-
+    def error_report(self, warning=False, error=True, critical=True, group_only=False):
+        for check, title, e_dict in [
+            (warning, "Warning", self.warnings),
+            (error, "Error", self.errors),
+            (critical, "Critical", self.criticals)
+        ]:
+            if check and e_dict:
+                self._separator(f"{title} Report")
+                for k, v in e_dict.items():
+                    if group_only and k is None:
+                        continue
+                    self._info()
+                    self._info(f"{'Generic' if k is None else k} {title}s: ")
+                    for e in v:
+                        self._error(f"  {e}", ignore=True)

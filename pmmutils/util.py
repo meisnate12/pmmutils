@@ -51,3 +51,27 @@ def download_image(download_image_url, path, name="temp"):
     while is_locked(temp_image_name):
         time.sleep(1)
     return temp_image_name
+
+byte_levels = [
+    (1024 ** 5, 'Petabyte'), (1024 ** 4, 'Terabyte'), (1024 ** 3, 'Gigabyte'),
+    (1024 ** 2, 'Megabyte'), (1024 ** 1, 'Kilobyte'), (1024 ** 0, 'Byte'),
+]
+def format_bytes(byte_count):
+    byte_count = int(byte_count)
+    if byte_count <= 0:
+        return "0 Bytes"
+    for factor, suffix in byte_levels:
+        if byte_count >= factor:
+            return f"1 {suffix}" if byte_count == factor else f"{byte_count / factor:.2f} {suffix}s"
+
+def copy_with_progress(src, dst, description=None):
+    size = os.path.getsize(src)
+    with open(src, "rb") as fsrc:
+        with open(dst, "wb") as fdst:
+            with tqdm(total=size, unit="B", unit_scale=True, desc=description) as pbar:
+                while True:
+                    chunk = fsrc.read(4096)
+                    if not chunk:
+                        break
+                    fdst.write(chunk)
+                    pbar.update(len(chunk))
