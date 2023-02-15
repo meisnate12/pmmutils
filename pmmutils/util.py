@@ -82,7 +82,8 @@ def copy_with_progress(src, dst, description=None):
 def in_the_last(file, days=0, seconds=0, microseconds=0, milliseconds=0, minutes=0, hours=0, weeks=0):
     file_time = datetime.fromtimestamp(os.path.getctime(file))
     now = datetime.now()
-    return now - timedelta(days=days, seconds=seconds, microseconds=microseconds, milliseconds=milliseconds, minutes=minutes, hours=hours, weeks=weeks) <= file_time <= now
+    current = now - timedelta(days=days, seconds=seconds, microseconds=microseconds, milliseconds=milliseconds, minutes=minutes, hours=hours, weeks=weeks)
+    return current <= file_time <= now, str(now - file_time).split(".")[0]
 
 class Stats:
     def __init__(self):

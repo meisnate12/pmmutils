@@ -5,23 +5,24 @@ from .exceptions import Failed
 
 def parse_choice(env_str, default, arg_bool=False, arg_int=False):
     env_value = os.environ.get(env_str)
-    if env_value or (arg_int and env_value == 0):
-        if arg_bool:
-            if env_value is True or env_value is False:
-                return env_value
-            elif env_value.lower() in ["t", "true", "1", "y", "yes"]:
-                return True
-            else:
-                return False
-        elif arg_int:
-            try:
-                return int(env_value)
-            except ValueError:
-                return default
-        else:
-            return str(env_value)
-    else:
+    if env_value is None:
         return default
+    elif arg_bool:
+        if env_value is True or env_value is False:
+            return env_value
+        elif env_value.lower() in ["t", "true", "1", "y", "yes"]:
+            return True
+        elif env_value.lower() in ["f", "false", "0", "n", "no"]:
+            return False
+        else:
+            return default
+    elif arg_int:
+        try:
+            return int(env_value)
+        except ValueError:
+            return default
+    else:
+        return str(env_value)
 
 class Version:
     def __init__(self, original="Unknown", text="develop"):

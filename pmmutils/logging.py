@@ -322,6 +322,7 @@ class PMMLogger:
         self._info("                                                                     |___/           ", center=True)
         if sub:
             self._info(self.name, center=True)
+            self._info()
 
         self._info(f"    Version: {pmm_args.local_version} {pmm_args.system_version}")
         if pmm_args.update_version:
