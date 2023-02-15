@@ -1,5 +1,5 @@
 import glob, time, os, requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import cached_property
 from pathvalidate import is_valid_filename, sanitize_filename
 from tqdm import tqdm
@@ -78,6 +78,11 @@ def copy_with_progress(src, dst, description=None):
                         break
                     fdst.write(chunk)
                     pbar.update(len(chunk))
+
+def in_the_last(file, days=0, seconds=0, microseconds=0, milliseconds=0, minutes=0, hours=0, weeks=0):
+    file_time = datetime.fromtimestamp(os.path.getctime(file))
+    now = datetime.now()
+    return now - timedelta(days=days, seconds=seconds, microseconds=microseconds, milliseconds=milliseconds, minutes=minutes, hours=hours, weeks=weeks) <= file_time <= now
 
 class Stats:
     def __init__(self):
