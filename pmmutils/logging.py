@@ -1,17 +1,11 @@
 import logging, os, platform, psutil, requests, sys, traceback
 from datetime import datetime
+from functools import cached_property
 from json import JSONDecodeError
 from logging.handlers import RotatingFileHandler
 from .exceptions import Failed
 
 logger = None
-
-def my_except_hook(exctype, value, tb):
-    if issubclass(exctype, KeyboardInterrupt):
-        sys.__excepthook__(exctype, value, tb)
-    elif logger:
-        logger.critical(f"Traceback (most recent call last):\n{''.join(traceback.format_tb(tb))}{exctype.__name__}: {value}", discord=True)
-
 
 class RedactingFormatter(logging.Formatter):
     _secrets = []
@@ -32,6 +26,37 @@ class RedactingFormatter(logging.Formatter):
     def __getattr__(self, attr):
         return getattr(self.orig_formatter, attr)
 
+class Stat:
+    def __init__(self, name=None):
+        self.name = name
+        self.start = datetime.now()
+        self.stats = {}
+
+    def __getitem__(self, key):
+        if key in self.stats:
+            return self.stats[key]
+        raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        self.stats[key] = value
+
+    @cached_property
+    def end(self):
+        return datetime.now()
+
+    @cached_property
+    def runtime(self):
+        return str(self.end - self.start).split(".")[0]
+
+    def __str__(self):
+        return self.runtime
+
+def my_except_hook(exctype, value, tb):
+    if issubclass(exctype, KeyboardInterrupt):
+        sys.__excepthook__(exctype, value, tb)
+    elif logger:
+        logger.critical(f"Traceback (most recent call last):\n{''.join(traceback.format_tb(tb))}{exctype.__name__}: {value}", discord=True)
+
 def fmt_filter(record):
     record.levelname = f"[{record.levelname}]"
     record.filename = f"[{record.filename}:{record.lineno}]"
@@ -51,6 +76,8 @@ class PMMLogger:
         self.is_trace = is_trace
         self.log_requests = log_requests
         self.ignore_ghost = ignore_ghost
+        self.current = None
+        self.stats = {self.current: Stat()}
         self.warnings = {}
         self.errors = {}
         self.criticals = {}
@@ -118,33 +145,51 @@ class PMMLogger:
             if not log_only or isinstance(h, RotatingFileHandler):
                 h.setFormatter(RedactingFormatter(f"{file if isinstance(h, RotatingFileHandler) else ''}{console}"))
 
-    def _centered(self, text, sep=" ", side_space=True, left=False):
+    def _center(self, text, total, sep=None, left=False, right=False):
+        if sep is None:
+            sep = " "
+        text = str(text)
+        space = total - len(text)
+        if space % 2 == 1:
+            text = f"{sep}{text}" if right else f"{text}{sep}"
+            space -= 1
+        side = int(space / 2)
+        if left:
+            return f"{text}{sep * side}{sep * side}"
+        elif right:
+            return f"{sep * side}{sep * side}{text}"
+        else:
+            return f"{sep * side}{text}{sep * side}"
+
+    def _centered(self, text, sep=None, side_space=True, left=False, right=False):
         text = str(text)
         if len(text) > self.screen_width - 2:
             return text
-        space = self.screen_width - len(text) - 2
-        text = f"{' ' if side_space else sep}{text}{' ' if side_space else sep}"
-        if space % 2 == 1:
-            text += sep
-            space -= 1
-        side = int(space / 2) - 1
-        final_text = f"{text}{sep * side}{sep * side}" if left else f"{sep * side}{text}{sep * side}"
-        return final_text
+        side = " " if side_space else sep if sep else ""
+        final = self._center(f"{side}{text}{side}", self.screen_width - 2, sep=sep, left=left, right=right)
+        return final
 
-    def _separator(self, text=None, space=True, border=True, debug=False, trace=False, side_space=True, left=False, stacklevel=8):
-        self.separator(text=text, space=space, border=border, debug=debug, trace=trace, side_space=side_space, left=left, stacklevel=stacklevel)
+    def _separator(self, text=None, space=True, border=True, sep=None, debug=False, trace=False, side_space=True, left=False, right=False, stacklevel=8):
+        self.separator(text=text, space=space, border=border, sep=sep, debug=debug, trace=trace, side_space=side_space, left=left, right=right, stacklevel=stacklevel)
 
-    def separator(self, text=None, space=True, border=True, debug=False, trace=False, side_space=True, left=False, stacklevel=6):
+    def separator(self, text=None, space=True, border=True, enclose=False, sep=None, debug=False, trace=False, side_space=True, left=False, right=False, stacklevel=6):
         if trace and not self.is_trace:
             return None
-        sep = " " if space else self.separating_character
-        border_text = f"|{self.separating_character * self.screen_width}|"
+        character = sep or self.separating_character
+        sep = " " if space else character
+        border_text = f"|{character * self.screen_width}|"
+        text_list = text.split("\n") if text else []
+        if text and enclose:
+            text_width = len(max(text_list, key=len)) + (2 if side_space else 0)
+            box_width = text_width + 2
+            if box_width < self.screen_width - 2:
+                border_text = self._center(f"{box_width * character}", self.screen_width - 2, left=left, right=right)
+            text_list = [f"|{self._center(t, text_width)}|" for t in text_list]
         if border:
             self.print(border_text, debug=debug, trace=trace, stacklevel=stacklevel)
         if text:
-            text_list = text.split("\n")
             for t in text_list:
-                msg = f"|{sep}{self._centered(t, sep=sep, side_space=side_space, left=left)}{sep}|"
+                msg = f"|{sep}{self._centered(t, sep=None if enclose else sep, side_space=side_space and not enclose, left=left, right=right)}{sep}|"
                 self.print(msg, debug=debug, trace=trace, stacklevel=stacklevel)
             if border:
                 self.print(border_text, debug=debug, trace=trace, stacklevel=stacklevel)
@@ -167,76 +212,94 @@ class PMMLogger:
             self.info(msg, stacklevel=stacklevel)
 
     def _trace(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=5):
-        self.trace(msg=msg, center=center, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
+        return self.trace(msg=msg, center=center, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
 
-    def trace(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=3):
+    def trace(self, msg="", center=False, log=True, discord=False, start=None, rows=None, stacklevel=3):
         if self.is_trace:
+            if start is not None:
+                self.start(start)
             if log:
                 self.new__log(logging.NOTSET, msg, [], center=center, stacklevel=stacklevel)
             if discord:
                 self.discord_request(" Trace", msg, rows=rows)
+        return str(msg)
 
     def _debug(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=5):
-        self.debug(msg=msg, center=center, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
+        return self.debug(msg=msg, center=center, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
 
-    def debug(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=3):
+    def debug(self, msg="", center=False, log=True, discord=False, start=None, rows=None, stacklevel=3):
         if self._logger.isEnabledFor(logging.DEBUG):
+            if start is not None:
+                self.start(start)
             if log:
                 self.new__log(logging.DEBUG, msg, [], center=center, stacklevel=stacklevel)
             if discord:
                 self.discord_request(" Debug", msg, rows=rows)
+        return str(msg)
 
     def _info(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=5):
-        self.info(msg=msg, center=center, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
+        return self.info(msg=msg, center=center, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
 
-    def info(self, msg="", center=False, log=True, discord=False, rows=None, stacklevel=3):
+    def info(self, msg="", center=False, log=True, discord=False, start=None, rows=None, stacklevel=3):
         if self._logger.isEnabledFor(logging.INFO):
+            if start is not None:
+                self.start(start)
             if log:
                 self.new__log(logging.INFO, msg, [], center=center, stacklevel=stacklevel)
             if discord:
                 self.discord_request("", msg, rows=rows)
+        return str(msg)
 
     def _warning(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=5):
-        self.warning(msg=msg, center=center, group=group, ignore=ignore, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
+        return self.warning(msg=msg, center=center, group=group, ignore=ignore, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
 
-    def warning(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=3):
+    def warning(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, start=None, rows=None, stacklevel=3):
         if self._logger.isEnabledFor(logging.WARNING):
             if not ignore:
                 if group not in self.warnings:
                     self.warnings[group] = []
                 self.warnings[group].append(msg)
+            if start is not None:
+                self.start(start)
             if log:
                 self.new__log(logging.WARNING, msg, [], center=center, stacklevel=stacklevel)
             if discord:
                 self.discord_request(" Warning", msg, rows=rows, color=0xbc0030)
+        return str(msg)
 
     def _error(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=5):
-        self.error(msg=msg, center=center, group=group, ignore=ignore, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
+        return self.error(msg=msg, center=center, group=group, ignore=ignore, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
 
-    def error(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=3):
+    def error(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, start=None, rows=None, stacklevel=3):
         if self._logger.isEnabledFor(logging.ERROR):
             if not ignore:
                 if group not in self.errors:
                     self.errors[group] = []
                 self.errors[group].append(msg)
+            if start is not None:
+                self.start(start)
             if log:
                 self.new__log(logging.ERROR, msg, [], center=center, stacklevel=stacklevel)
             if discord:
                 self.discord_request(" Error", msg, rows=rows, color=0xbc0030)
+        return str(msg)
 
     def _critical(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, stacklevel=5):
-        self.critical(msg=msg, center=center, group=group, ignore=ignore, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
+        return self.critical(msg=msg, center=center, group=group, ignore=ignore, log=log, discord=discord, rows=rows, stacklevel=stacklevel)
 
-    def critical(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, rows=None, exc_info=None, stacklevel=3):
+    def critical(self, msg="", center=False, group=None, ignore=False, log=True, discord=False, start=None, rows=None, exc_info=None, stacklevel=3):
         if self._logger.isEnabledFor(logging.CRITICAL):
             if not ignore:
                 if group not in self.criticals:
                     self.criticals[group] = []
                 self.criticals[group].append(msg)
+            if start is not None:
+                self.start(start)
             if log:
                 self.new__log(logging.CRITICAL, msg, [], center=center, exc_info=exc_info, stacklevel=stacklevel)
             if discord:
                 self.discord_request(" Critical Failure", msg, rows=rows, color=0xbc0030)
+        return str(msg)
 
     def stacktrace(self, trace=False):
         self.print(traceback.format_exc(), debug=not trace, trace=trace)
@@ -267,7 +330,7 @@ class PMMLogger:
         if text and str(text) not in RedactingFormatter.secrets:
             RedactingFormatter.secrets.append(str(text))
 
-    def discord_request(self, title, description, rows=None, color=0x00bc8c):
+    def discord_request(self, title, description=None, rows=None, color=0x00bc8c):
         if self.discord_url:
             json = {
                 "embeds": [
@@ -289,28 +352,67 @@ class PMMLogger:
                 fields = []
                 for row in rows:
                     for col in row:
-                        col_name, col_value = col
-                        field = {"name": col_name}
+                        col_name = col[0] if isinstance(col, tuple) else ""
+                        col_value = col[1] if isinstance(col, tuple) else col
+                        if not col_value:
+                            col_value = f"**{col_name}**"
+                            col_name = ""
+                        field = {"name": str(col_name)}
                         if col_value:
-                            field["value"] = col_value
+                            field["value"] = str(col_value)
                         if len(row) > 1:
                             field["inline"] = True
                         fields.append(field)
                 json["embeds"][0]["fields"] = fields
             try:
-                if response := requests.post(self.discord_url, json=json):
-                    try:
-                        response_json = response.json()
-                        if response.status_code >= 400:
-                            self.discord_url = None
-                            raise Failed(f"({response.status_code} [{response.reason}]) {response_json}")
-                    except JSONDecodeError:
-                        if response.status_code >= 400:
-                            self.discord_url = None
-                            raise Failed(f"({response.status_code} [{response.reason}])")
+                response = requests.post(self.discord_url, json=json)
+                try:
+                    response_json = response.json()
+                    if response.status_code >= 400:
+                        self.discord_url = None
+                        raise Failed(f"({response.status_code} [{response.reason}]) {response_json}")
+                except JSONDecodeError:
+                    if response.status_code >= 400:
+                        self.discord_url = None
+                        raise Failed(f"({response.status_code} [{response.reason}])")
             except requests.exceptions.RequestException:
                 self.discord_url = None
                 raise Failed(f"Discord URL Connection Failure")
+
+    def start(self, name=None):
+        self.current = name
+        self[name] = Stat()
+
+    def switch(self, name=None):
+        self.current = name
+
+    def end(self, name=None):
+        if name is None:
+            name = self.current
+        return self[name].end
+
+    def runtime(self, name=None):
+        if name is None:
+            name = self.current
+        return self[name].runtime
+
+    def stats(self, name=None):
+        if name is None:
+            name = self.current
+        return self[name].stats
+
+    def stat(self, key, value, name=None):
+        if name is None:
+            name = self.current
+        self[name][key] = value
+
+    def __getitem__(self, name):
+        if name in self.stats:
+            return self.stats[name]
+        raise KeyError(name)
+
+    def __setitem__(self, key, value):
+        self.stats[key] = value
 
     def header(self, pmm_args, sub=False, discord_update=False):
         self._separator()
@@ -334,18 +436,36 @@ class PMMLogger:
             self._info(f"    Newest Version: {pmm_args.update_version}")
         self._info(f"    Platform: {platform.platform()}")
         self._info(f"    Memory: {round(psutil.virtual_memory().total / (1024.0 ** 3))} GB")
-        self._separator()
+        self._separator(debug=True)
 
         run_arg = " ".join([f'"{s}"' if " " in s else s for s in sys.argv[:]])
         self._debug(f"Run Command: {run_arg}")
         for o in pmm_args.options:
             self._debug(f"--{o['key']} ({o['env']}): {pmm_args.choices[o['key']]}")
 
-    def report(self, title, items):
+    def report(self, title, rows, description=None, discord=False):
         self._separator(title)
-        key_length = len(max(items, key=len))
-        for k, v in items.items():
-            self._info(f"{k:<{key_length}} | {v}")
+        if description:
+            self._info(description)
+            self._separator()
+        for row in rows:
+            if len(row) > 1:
+                final = ""
+                length = 0
+                for k, v in row:
+                    if (new_length := len(str(k))) > length:
+                        length = new_length
+                for k, v in row:
+                    self._info(f"{k:<{length}} | {v}")
+            elif isinstance(row[0], tuple):
+                if not row[0][1]:
+                    self._separator(row[0][0], space=False, border=False)
+                else:
+                    self._info(f"{row[0][0]} | {row[0][1]}")
+            else:
+                self._info(row[0])
+        if discord:
+            self.discord_request(title, description=description, rows=rows)
 
     def error_report(self, warning=False, error=True, critical=True, group_only=False):
         for check, title, e_dict in [

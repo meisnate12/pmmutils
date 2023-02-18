@@ -55,6 +55,14 @@ def download_image(download_image_url, path, name="temp"):
         time.sleep(1)
     return temp_image_name
 
+def move_path(file_path, old_base, new_base, suffix=None, append=True):
+    rel_path = file_path.removeprefix(old_base)[1:]
+    final_path = os.path.join(new_base, rel_path)
+    os.makedirs(os.path.dirname(final_path), exist_ok=True)
+    final_file = f"{final_path}{suffix}" if suffix and append else final_path.removesuffix(suffix) if suffix else final_path
+    os.rename(file_path, final_file)
+    return final_file
+
 byte_levels = [
     (1024 ** 5, 'Petabyte'), (1024 ** 4, 'Terabyte'), (1024 ** 3, 'Gigabyte'),
     (1024 ** 2, 'Megabyte'), (1024 ** 1, 'Kilobyte'), (1024 ** 0, 'Byte'),
