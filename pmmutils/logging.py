@@ -90,16 +90,17 @@ class PMMLogger:
         self.bot_image_url = "https://github.com/meisnate12/Plex-Meta-Manager/raw/master/.github/pmm.png"
         if not self.log_file:
             self.log_file = f"{self.log_name}.log"
+        self.log_path = os.path.join(self.log_dir, self.log_file)
         os.makedirs(self.log_dir, exist_ok=True)
         self._logger = logging.getLogger(None if self.log_requests else self.log_name)
         self._logger.setLevel(logging.DEBUG)
-        cmd_handler = logging.StreamHandler()
-        cmd_handler.setLevel(logging.DEBUG if self.is_debug else logging.INFO)
-        self._formatter(handler=cmd_handler)
-        self._logger.addHandler(cmd_handler)
-        main_handler = self._add_handler(os.path.join(self.log_dir, self.log_file), count=9)
-        main_handler.addFilter(fmt_filter)
-        self._logger.addHandler(main_handler)
+        self.cmd_handler = logging.StreamHandler()
+        self.cmd_handler.setLevel(logging.DEBUG if self.is_debug else logging.INFO)
+        self._formatter(handler=self.cmd_handler)
+        self._logger.addHandler(self.cmd_handler)
+        self.main_handler = self._add_handler(self.log_path, count=9)
+        self.main_handler.addFilter(fmt_filter)
+        self._logger.addHandler(self.main_handler)
         self.old__log = self._logger._log
         self._logger._log = self.new__log
 
@@ -301,6 +302,10 @@ class PMMLogger:
                 self.discord_request(" Critical Failure", msg, rows=rows, color=0xbc0030)
         return str(msg)
 
+    def rollover(self):
+        if os.path.exists(self.log_path):
+            self.main_handler.doRollover()
+
     def stacktrace(self, trace=False):
         self.print(traceback.format_exc(), debug=not trace, trace=trace)
 
@@ -414,7 +419,8 @@ class PMMLogger:
     def __setitem__(self, key, value):
         self.stats[key] = value
 
-    def header(self, pmm_args, sub=False, discord_update=False):
+    def header(self, pmm_args, sub=False, discord_update=False, override=None):
+        self.rollover()
         self._separator()
         self._info(" ____  _             __  __      _          __  __                                   ", center=True)
         self._info("|  _ \\| | _____  __ |  \\/  | ___| |_ __ _  |  \\/  | __ _ _ __   __ _  __ _  ___ _ __ ", center=True)
@@ -441,7 +447,8 @@ class PMMLogger:
         run_arg = " ".join([f'"{s}"' if " " in s else s for s in sys.argv[:]])
         self._debug(f"Run Command: {run_arg}")
         for o in pmm_args.options:
-            self._debug(f"--{o['key']} ({o['env']}): {pmm_args.choices[o['key']]}")
+            value = override[o["key"]] if override and o["key"] in override else pmm_args.choices[o['key']]
+            self._debug(f"--{o['key']} ({o['env']}): {value}")
 
     def report(self, title, rows, description=None, discord=False):
         self._separator(title)

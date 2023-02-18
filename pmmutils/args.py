@@ -8,14 +8,7 @@ def parse_choice(env_str, default, arg_bool=False, arg_int=False):
     if env_value is None:
         return default
     elif arg_bool:
-        if env_value is True or env_value is False:
-            return env_value
-        elif env_value.lower() in ["t", "true", "1", "y", "yes"]:
-            return True
-        elif env_value.lower() in ["f", "false", "0", "n", "no"]:
-            return False
-        else:
-            return default
+        return parse_bool(env_value, default)
     elif arg_int:
         try:
             return int(env_value)
@@ -23,6 +16,16 @@ def parse_choice(env_str, default, arg_bool=False, arg_int=False):
             return default
     else:
         return str(env_value)
+
+def parse_bool(value, default=None):
+    if value is True or value is False:
+        return value
+    elif value.lower() in ["t", "true", "1", "y", "yes"]:
+        return True
+    elif value.lower() in ["f", "false", "0", "n", "no"]:
+        return False
+    else:
+        return default
 
 class Version:
     def __init__(self, original="Unknown", text="develop"):
