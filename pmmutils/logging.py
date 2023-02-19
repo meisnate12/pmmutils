@@ -98,9 +98,7 @@ class PMMLogger:
         self.cmd_handler.setLevel(logging.DEBUG if self.is_debug else logging.INFO)
         self._formatter(handler=self.cmd_handler)
         self._logger.addHandler(self.cmd_handler)
-        self.main_handler = self._add_handler(self.log_path, count=9)
-        self.main_handler.addFilter(fmt_filter)
-        self._logger.addHandler(self.main_handler)
+        self.main_handler = None
         self.old__log = self._logger._log
         self._logger._log = self.new__log
 
@@ -127,6 +125,14 @@ class PMMLogger:
 
         if trace or log_only or msg.startswith("|"):
             self._formatter()
+
+    def add_main_handler(self):
+        self.main_handler = self._add_handler(self.log_path, count=9)
+        self.main_handler.addFilter(fmt_filter)
+        self._logger.addHandler(self.main_handler)
+
+    def remove_main_handler(self):
+        self._logger.removeHandler(self.main_handler)
 
     def _add_handler(self, log_file, count=3):
         _handler = RotatingFileHandler(log_file, delay=True, mode="w", backupCount=count, encoding="utf-8")
@@ -302,10 +308,6 @@ class PMMLogger:
                 self.discord_request(" Critical Failure", msg, rows=rows, color=0xbc0030)
         return str(msg)
 
-    def rollover(self):
-        if os.path.exists(self.log_path):
-            self.main_handler.doRollover()
-
     def stacktrace(self, trace=False):
         self.print(traceback.format_exc(), debug=not trace, trace=trace)
 
@@ -332,8 +334,10 @@ class PMMLogger:
             self.spacing = 0
 
     def secret(self, text):
-        if text and str(text) not in RedactingFormatter.secrets:
-            RedactingFormatter.secrets.append(str(text))
+        text = text if isinstance(text, list) else [text]
+        for t in text:
+            if t and str(t) not in RedactingFormatter._secrets:
+                RedactingFormatter._secrets.append(str(t))
 
     def discord_request(self, title, description=None, rows=None, color=0x00bc8c):
         if self.discord_url:
@@ -420,7 +424,7 @@ class PMMLogger:
         self.stats[key] = value
 
     def header(self, pmm_args, sub=False, discord_update=False, override=None):
-        self.rollover()
+        self.add_main_handler()
         self._separator()
         self._info(" ____  _             __  __      _          __  __                                   ", center=True)
         self._info("|  _ \\| | _____  __ |  \\/  | ___| |_ __ _  |  \\/  | __ _ _ __   __ _  __ _  ___ _ __ ", center=True)
