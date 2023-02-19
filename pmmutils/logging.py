@@ -170,10 +170,10 @@ class PMMLogger:
         final = self._center(f"{side}{text}{side}", self.screen_width - 2, sep=sep, left=left, right=right)
         return final
 
-    def _separator(self, text=None, space=True, border=True, sep=None, debug=False, trace=False, side_space=True, left=False, right=False, stacklevel=8):
+    def _separator(self, text=None, space=True, border=True, sep=None, debug=False, trace=False, side_space=True, left=False, right=False, stacklevel=7):
         self.separator(text=text, space=space, border=border, sep=sep, debug=debug, trace=trace, side_space=side_space, left=left, right=right, stacklevel=stacklevel)
 
-    def separator(self, text=None, space=True, border=True, enclose=False, sep=None, debug=False, trace=False, side_space=True, left=False, right=False, stacklevel=6):
+    def separator(self, text=None, space=True, border=True, enclose=False, sep=None, debug=False, trace=False, side_space=True, left=False, right=False, stacklevel=5):
         if trace and not self.is_trace:
             return None
         character = sep or self.separating_character
@@ -454,10 +454,8 @@ class PMMLogger:
         self._separator(title)
         if description:
             self._info(description)
-            self._separator()
         for row in rows:
             if len(row) > 1:
-                final = ""
                 length = 0
                 for k, v in row:
                     if (new_length := len(str(k))) > length:
@@ -467,10 +465,13 @@ class PMMLogger:
             elif isinstance(row[0], tuple):
                 if not row[0][1]:
                     self._separator(row[0][0], space=False, border=False)
+                elif not row[0][0]:
+                    self._info(f"{row[0][1]}")
                 else:
                     self._info(f"{row[0][0]} | {row[0][1]}")
             else:
                 self._info(row[0])
+        self._separator()
         if discord:
             self.discord_request(title, description=description, rows=rows)
 
