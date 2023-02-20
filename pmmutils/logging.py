@@ -17,11 +17,10 @@ class RedactingFormatter(logging.Formatter):
         super().__init__()
 
     def format(self, record):
-        msg = self.orig_formatter.format(record)
         for secret in self._secrets:
             if secret:
-                msg = msg.replace(secret, "(redacted)")
-        return msg
+                record.msg = record.msg.replace(secret, "(redacted)")
+        return self.orig_formatter.format(record)
 
     def __getattr__(self, attr):
         return getattr(self.orig_formatter, attr)
@@ -448,16 +447,17 @@ class PMMLogger:
             value = override[o["key"]] if override and o["key"] in override else pmm_args.choices[o['key']]
             self._debug(f"--{o['key']} ({o['env']}): {value}")
 
-    def report(self, title, rows, description=None, discord=False):
+    def report(self, title, rows, description=None, width=None, discord=False):
         self._separator(title)
         if description:
             self._info(description)
         for row in rows:
             if len(row) > 1:
-                length = 0
-                for k, v in row:
-                    if (new_length := len(str(k))) > length:
-                        length = new_length
+                length = 0 if width is None else width
+                if width is None:
+                    for k, v in row:
+                        if (new_length := len(str(k))) > length:
+                            length = new_length
                 for k, v in row:
                     self._info(f"{k:<{length}} | {v}")
             elif isinstance(row[0], tuple):
@@ -465,8 +465,10 @@ class PMMLogger:
                     self._separator(row[0][0], space=False, border=False)
                 elif not row[0][0]:
                     self._info(f"{row[0][1]}")
-                else:
+                elif width is None:
                     self._info(f"{row[0][0]} | {row[0][1]}")
+                else:
+                    self._info(f"{row[0][0]:<{width}} | {row[0][1]}")
             else:
                 self._info(row[0])
         self._separator()

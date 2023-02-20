@@ -21,7 +21,7 @@ def is_locked(filepath):
     file_object = None
     if os.path.exists(filepath):
         try:
-            file_object = open(filepath, 'a', 8)
+            file_object = open(filepath, "a", 8)
             if file_object:
                 locked = False
         except IOError:
@@ -64,8 +64,8 @@ def move_path(file_path, old_base, new_base, suffix=None, append=True):
     return final_file
 
 byte_levels = [
-    (1024 ** 5, 'Petabyte'), (1024 ** 4, 'Terabyte'), (1024 ** 3, 'Gigabyte'),
-    (1024 ** 2, 'Megabyte'), (1024 ** 1, 'Kilobyte'), (1024 ** 0, 'Byte'),
+    (1024 ** 5, "PB"), (1024 ** 4, "TB"), (1024 ** 3, "GB"),
+    (1024 ** 2, "MB"), (1024 ** 1, "KB"), (1024 ** 0, "B"),
 ]
 def format_bytes(byte_count):
     byte_count = int(byte_count)
