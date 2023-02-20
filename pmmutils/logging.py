@@ -341,22 +341,15 @@ class PMMLogger:
 
     def discord_request(self, title, description=None, rows=None, color=0x00bc8c):
         if self.discord_url:
-            json = {
-                "embeds": [
-                    {
-                        "title": f"{self.name}{title}",
-                        "color": color,
-                        "timestamp": str(datetime.utcnow())
-                    }
-                ],
-                "username": self.bot_name,
-                "avatar_url": self.bot_image_url
+            embed = {
+                "title": f"{self.name}{title}",
+                "color": color,
+                "timestamp": str(datetime.utcnow())
             }
             if description:
-                json["embeds"][0]["description"] = description
+                embed["description"] = description
             if self.thumbnail_url:
-                json["embeds"][0]["thumbnail"] = {"url": self.thumbnail_url, "height": 0, "width": 0}
-
+                embed["thumbnail"] = {"url": self.thumbnail_url, "height": 0, "width": 0}
             if rows:
                 fields = []
                 for row in rows:
@@ -372,8 +365,9 @@ class PMMLogger:
                         if len(row) > 1:
                             field["inline"] = True
                         fields.append(field)
-                json["embeds"][0]["fields"] = fields
+                embed["fields"] = fields
             try:
+                json = {"embeds": [embed], "username": self.bot_name, "avatar_url": self.bot_image_url}
                 response = requests.post(self.discord_url, json=json)
                 try:
                     response_json = response.json()
