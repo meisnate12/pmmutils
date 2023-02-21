@@ -175,10 +175,12 @@ class PMMLogger:
         final = self._center(f"{side}{text}{side}", self.screen_width - 2, sep=sep, left=left, right=right)
         return final
 
-    def _separator(self, text=None, space=True, border=True, sep=None, debug=False, trace=False, side_space=True, left=False, right=False, stacklevel=7):
-        self.separator(text=text, space=space, border=border, sep=sep, debug=debug, trace=trace, side_space=side_space, left=left, right=right, stacklevel=stacklevel)
+    def _separator(self, text=None, space=True, border=True, enclose=False, sep=None, debug=False, trace=False, side_space=True, start=None, left=False, right=False, stacklevel=7):
+        self.separator(text=text, space=space, border=border, enclose=enclose, sep=sep, debug=debug, trace=trace, side_space=side_space, start=start, left=left, right=right, stacklevel=stacklevel)
 
-    def separator(self, text=None, space=True, border=True, enclose=False, sep=None, debug=False, trace=False, side_space=True, left=False, right=False, stacklevel=5):
+    def separator(self, text=None, space=True, border=True, enclose=False, sep=None, debug=False, trace=False, side_space=True, start=None, left=False, right=False, stacklevel=5):
+        if start is not None:
+            self.start(start)
         if trace and not self.is_trace:
             return None
         character = sep or self.separating_character
