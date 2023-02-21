@@ -25,6 +25,10 @@ class RedactingFormatter(logging.Formatter):
     def __getattr__(self, attr):
         return getattr(self.orig_formatter, attr)
 
+def log_namer(default_name):
+    base, ext, num = default_name.split(".")
+    return f"{base}-{num}.{ext}"
+
 class Stat:
     def __init__(self, name=None):
         self.name = name
@@ -135,6 +139,7 @@ class PMMLogger:
 
     def _add_handler(self, log_file, count=3):
         _handler = RotatingFileHandler(log_file, delay=True, mode="w", backupCount=count, encoding="utf-8")
+        _handler.namer = log_namer
         self._formatter(handler=_handler)
         if os.path.isfile(log_file):
             self._logger.removeHandler(_handler)
