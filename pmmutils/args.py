@@ -108,6 +108,9 @@ class PMMArgs:
     def __setitem__(self, key, value):
         self.choices[key] = value
 
+    def __contains__(self, key):
+        return key in self.choices
+
     def _github_request(self, path, repo=None, params=None):
         response = requests.get(f"https://api.github.com/repos/{repo or self.repo}/{path}", params=params)
         if response.status_code >= 400:
