@@ -14,6 +14,9 @@ if os.path.exists("VERSION"):
                 __version__ = line
                 break
 
+with open("requirements.txt", "r") as handle:
+    requirements = [i.strip() for i in handle.readlines()]
+
 setup(
     name=pmmutils.__package_name__,
     version=__version__,
@@ -24,16 +27,9 @@ setup(
     author_email=pmmutils.__email__,
     license=pmmutils.__license__,
     packages=find_packages(),
-    python_requires=">=3.10",
+    python_requires=">=3.11",
     keywords=["pmmutils"],
-    install_requires=[
-        "GitPython",
-        "pathvalidate",
-        "psutil",
-        "python-dotenv",
-        "requests",
-        "tqdm"
-    ],
+    install_requires=requirements,
     project_urls={
         "Documentation": "https://github.com/meisnate12/pmmutils",
         "Funding": "https://github.com/sponsors/meisnate12",
@@ -45,7 +41,6 @@ setup(
         "Intended Audience :: Developers",
         "Topic :: Software Development :: Libraries",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ]
 )
