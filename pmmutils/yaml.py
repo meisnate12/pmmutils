@@ -43,3 +43,15 @@ class YAML:
         if self.path:
             with open(self.path, 'w', encoding="utf-8") as fp:
                 self.yaml.dump(self.data, fp)
+
+    @staticmethod
+    def inline(data):
+        if isinstance(data, list):
+            output = ruamel.yaml.comments.CommentedSeq(data)
+        elif isinstance(data, dict):
+
+            output = ruamel.yaml.comments.CommentedMap(data)
+        else:
+            return data
+        output.fa.set_flow_style()
+        return output

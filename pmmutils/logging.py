@@ -315,7 +315,7 @@ class PMMLogger:
         return str(msg)
 
     def stacktrace(self, trace=False):
-        self.print(traceback.format_exc(), debug=not trace, trace=trace)
+        self._print(traceback.format_exc(), debug=not trace, trace=trace)
 
     def _space(self, display_title):
         display_title = str(display_title)
