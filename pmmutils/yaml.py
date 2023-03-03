@@ -39,6 +39,42 @@ class YAML:
     def __contains__(self, key):
         return key in self.data
 
+    def __repr__(self):
+        return repr(self.data)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __delitem__(self, key):
+        del self.data[key]
+
+    def clear(self):
+        return self.data.clear()
+
+    def copy(self):
+        return self.data.copy()
+
+    def has_key(self, k):
+        return k in self.data
+
+    def update(self, *args, **kwargs):
+        return self.data.update(*args, **kwargs)
+
+    def keys(self):
+        return self.data.keys()
+
+    def values(self):
+        return self.data.values()
+
+    def items(self):
+        return self.data.items()
+
+    def pop(self, *args):
+        return self.data.pop(*args)
+
+    def __iter__(self):
+        return iter(self.data)
+
     def save(self):
         if self.path:
             with open(self.path, 'w', encoding="utf-8") as fp:
@@ -55,3 +91,7 @@ class YAML:
             return data
         output.fa.set_flow_style()
         return output
+
+    @staticmethod
+    def quote(data):
+        return ruamel.yaml.scalarstring.DoubleQuotedScalarString(data)

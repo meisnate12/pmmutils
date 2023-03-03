@@ -129,8 +129,8 @@ class PMMLogger:
         if trace or log_only or msg.startswith("|"):
             self._formatter()
 
-    def add_main_handler(self):
-        self.main_handler = self._add_handler(self.log_path, count=9)
+    def add_main_handler(self, count=9):
+        self.main_handler = self._add_handler(self.log_path, count=count)
         self.main_handler.addFilter(fmt_filter)
         self._logger.addHandler(self.main_handler)
 
@@ -423,8 +423,8 @@ class PMMLogger:
     def __setitem__(self, key, value):
         self.stats[key] = value
 
-    def header(self, pmm_args, sub=False, discord_update=False, override=None):
-        self.add_main_handler()
+    def header(self, pmm_args, sub=False, discord_update=False, override=None, count=9):
+        self.add_main_handler(count=count)
         self._separator()
         self._info(" ____  _             __  __      _          __  __                                   ", center=True)
         self._info("|  _ \\| | _____  __ |  \\/  | ___| |_ __ _  |  \\/  | __ _ _ __   __ _  __ _  ___ _ __ ", center=True)
