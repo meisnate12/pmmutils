@@ -2,10 +2,12 @@ import os, ruamel.yaml
 from pmmutils import Failed
 
 class YAML:
-    def __init__(self, path=None, input_data=None, check_empty=False, create=False, start_empty=False):
+    def __init__(self, path=None, input_data=None, check_empty=False, create=False, start_empty=False, preserve_quotes=False):
         self.path = path
         self.input_data = input_data
         self.yaml = ruamel.yaml.YAML()
+        if preserve_quotes:
+            self.yaml.preserve_quotes = True
         self.yaml.indent(mapping=2, sequence=2)
         try:
             if input_data:
