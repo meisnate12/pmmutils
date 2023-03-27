@@ -71,7 +71,7 @@ class Version:
         return self.compare >= other.compare
 
 class PMMArgs:
-    def __init__(self, repo_name, base_dir, options, use_nightly=True, running_nightly=False):
+    def __init__(self, repo_name, base_dir, options, config_folder="config", use_nightly=True, running_nightly=False):
         self.repo = repo_name
         self.base_dir = base_dir
         self.options = options
@@ -93,7 +93,7 @@ class PMMArgs:
             else:
                 parser.add_argument(f"-{o['arg']}", f"--{o['key']}", dest=o["key"], help=o["help"])
         args_parsed = parser.parse_args()
-        load_dotenv(os.path.join(self.base_dir, "config", ".env"))
+        load_dotenv(os.path.join(self.base_dir, config_folder, ".env") if config_folder else os.path.join(self.base_dir, ".env"))
 
         for o in self.options:
             value = parse_choice(o["env"], getattr(args_parsed, o["key"]), arg_int=o["type"] == "int", arg_bool=o["type"] == "bool")
