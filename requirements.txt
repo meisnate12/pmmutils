@@ -1,4 +1,4 @@
-GitPython==3.1.31
+GitPython==3.1.32
 pathvalidate==2.5.2
 psutil==5.9.4
 python-dotenv==1.0.0
