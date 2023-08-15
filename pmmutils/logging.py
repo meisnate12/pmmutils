@@ -1,8 +1,9 @@
-import logging, os, platform, psutil, requests, sys, traceback
+import logging, platform, psutil, requests, sys, traceback
 from datetime import datetime
 from functools import cached_property
 from json import JSONDecodeError
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from .exceptions import Failed
 
 logger = None
@@ -72,7 +73,7 @@ class PMMLogger:
         sys.excepthook = my_except_hook
         self.name = name
         self.log_name = log_name
-        self.log_dir = log_dir
+        self.log_dir = Path(log_dir)
         self.log_file = log_file
         self.discord_url = discord_url
         self.is_debug = is_debug
@@ -93,8 +94,8 @@ class PMMLogger:
         self.bot_image_url = "https://github.com/meisnate12/Plex-Meta-Manager/raw/master/.github/pmm.png"
         if not self.log_file:
             self.log_file = f"{self.log_name}.log"
-        self.log_path = os.path.join(self.log_dir, self.log_file)
-        os.makedirs(self.log_dir, exist_ok=True)
+        self.log_path = self.log_dir / self.log_file
+        self.log_path.mkdir(exist_ok=True)
         self._logger = logging.getLogger(None if self.log_requests else self.log_name)
         self._logger.setLevel(logging.DEBUG)
         self.cmd_handler = logging.StreamHandler()
@@ -141,7 +142,7 @@ class PMMLogger:
         _handler = RotatingFileHandler(log_file, delay=True, mode="w", backupCount=count, encoding="utf-8")
         _handler.namer = log_namer
         self._formatter(handler=_handler)
-        if os.path.isfile(log_file):
+        if Path(log_file).is_file():
             self._logger.removeHandler(_handler)
             _handler.doRollover()
             self._logger.addHandler(_handler)

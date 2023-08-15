@@ -1,9 +1,10 @@
-import os, ruamel.yaml
+import ruamel.yaml
+from pathlib import Path
 from pmmutils import Failed
 
 class YAML:
     def __init__(self, path=None, input_data=None, check_empty=False, create=False, start_empty=False, preserve_quotes=False):
-        self.path = path
+        self.path = Path(path) if path else path
         self.input_data = input_data
         self.yaml = ruamel.yaml.YAML()
         if preserve_quotes:
@@ -13,12 +14,12 @@ class YAML:
             if input_data:
                 self.data = self.yaml.load(input_data)
             else:
-                if start_empty or (create and not os.path.exists(self.path)):
-                    with open(self.path, 'w'):
-                        pass
+                if start_empty or (create and not self.path.exists()):
+                    self.path.unlink(missing_ok=True)
+                    self.path.touch()
                     self.data = {}
                 else:
-                    with open(self.path, encoding="utf-8") as fp:
+                    with self.path.open(encoding="utf-8") as fp:
                         self.data = self.yaml.load(fp)
         except ruamel.yaml.error.YAMLError as e:
             e = str(e).replace("\n", "\n      ")
@@ -79,7 +80,7 @@ class YAML:
 
     def save(self):
         if self.path:
-            with open(self.path, 'w', encoding="utf-8") as fp:
+            with self.path.open(mode="w", encoding="utf-8") as fp:
                 self.yaml.dump(self.data, fp)
 
     @staticmethod

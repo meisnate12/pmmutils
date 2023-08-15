@@ -1,6 +1,7 @@
 import argparse, os, platform, re, requests, uuid
 from dotenv import load_dotenv
 from functools import cached_property
+from pathlib import Path
 from .exceptions import Failed
 
 def parse_choice(env_str, default, arg_bool=False, arg_int=False):
@@ -73,7 +74,7 @@ class Version:
 class PMMArgs:
     def __init__(self, repo_name, base_dir, options, config_folder="config", use_nightly=True, running_nightly=False):
         self.repo = repo_name
-        self.base_dir = base_dir
+        self.base_dir = Path(base_dir)
         self.options = options
         self.use_nightly = use_nightly
         self.running_nightly = running_nightly
@@ -93,7 +94,7 @@ class PMMArgs:
             else:
                 parser.add_argument(f"-{o['arg']}", f"--{o['key']}", dest=o["key"], help=o["help"])
         args_parsed = parser.parse_args()
-        load_dotenv(os.path.join(self.base_dir, config_folder, ".env") if config_folder else os.path.join(self.base_dir, ".env"))
+        load_dotenv(self.base_dir / config_folder / ".env" if config_folder else self.base_dir / ".env")
 
         for o in self.options:
             value = parse_choice(o["env"], getattr(args_parsed, o["key"]), arg_int=o["type"] == "int", arg_bool=o["type"] == "bool")
@@ -147,15 +148,15 @@ class PMMArgs:
 
     @cached_property
     def uuid(self):
-        uuid_file = os.path.join(self.base_dir, "config", "UUID")
-        if os.path.exists(uuid_file):
-            with open(uuid_file) as handle:
+        uuid_file = self.base_dir / "config" / "UUID"
+        if uuid_file.exists():
+            with uuid_file.open() as handle:
                 for line in handle.readlines():
                     line = line.strip()
                     if len(line) > 0:
                         return str(line)
         _uuid = str(uuid.uuid4())
-        with open(uuid_file, "w") as handle:
+        with uuid_file.open(mode="w") as handle:
             handle.write(_uuid)
         return _uuid
 
@@ -179,7 +180,7 @@ class PMMArgs:
     @cached_property
     def local_version(self):
         ver = Version()
-        with open(os.path.join(self.base_dir, "VERSION")) as handle:
+        with (self.base_dir / "VERSION").open() as handle:
             for line in handle.readlines():
                 line = line.strip()
                 if len(line) > 0:

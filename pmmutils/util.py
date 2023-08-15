@@ -1,6 +1,6 @@
 import glob, time, os, requests
 from datetime import datetime, timedelta
-from functools import cached_property
+from pathlib import Path
 from pathvalidate import is_valid_filename, sanitize_filename
 from tqdm import tqdm
 from .exceptions import Failed
@@ -19,7 +19,7 @@ def glob_filter(filter_in):
 def is_locked(filepath):
     locked = None
     file_object = None
-    if os.path.exists(filepath):
+    if Path(filepath).exists():
         try:
             file_object = open(filepath, "a", 8)
             if file_object:
@@ -48,19 +48,18 @@ def download_image(download_image_url, path, name="temp"):
         temp_image_name = f"{name}.webp"
     else:
         temp_image_name = f"{name}.png"
-    temp_image_name = os.path.join(path, temp_image_name)
-    with open(temp_image_name, "wb") as handler:
+    temp_image_name = Path(path) / temp_image_name
+    with temp_image_name.open(mode="wb") as handler:
         handler.write(image_response.content)
     while is_locked(temp_image_name):
         time.sleep(1)
     return temp_image_name
 
 def move_path(file_path, old_base, new_base, suffix=None, append=True):
-    rel_path = file_path.removeprefix(old_base)[1:]
-    final_path = os.path.join(new_base, rel_path)
-    os.makedirs(os.path.dirname(final_path), exist_ok=True)
-    final_file = f"{final_path}{suffix}" if suffix and append else final_path.removesuffix(suffix) if suffix else final_path
-    os.rename(file_path, final_file)
+    final_path = Path(new_base) / file_path.removeprefix(old_base)[1:]
+    final_path.parent.mkdir(exist_ok=True)
+    final_file = Path(f"{final_path}{suffix}" if suffix and append else str(final_path).removesuffix(suffix) if suffix else final_path)
+    Path(file_path).rename(final_file)
     return final_file
 
 byte_levels = [
