@@ -95,7 +95,7 @@ class PMMLogger:
         if not self.log_file:
             self.log_file = f"{self.log_name}.log"
         self.log_path = self.log_dir / self.log_file
-        self.log_path.mkdir(exist_ok=True)
+        self.log_path.parent.mkdir(exist_ok=True)
         self._logger = logging.getLogger(None if self.log_requests else self.log_name)
         self._logger.setLevel(logging.DEBUG)
         self.cmd_handler = logging.StreamHandler()
