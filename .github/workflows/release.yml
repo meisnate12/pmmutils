@@ -19,7 +19,7 @@ jobs:
           prerelease: false
 
       - name: Check Out Repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
