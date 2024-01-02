@@ -11,25 +11,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-      - name: Create Release for new Tag
-        uses: marvinpinto/action-automatic-releases@latest
-        with:
-          title: PMM-Util ${{ github.event.ref }}
-          repo_token: ${{ secrets.PAT }}
-          prerelease: false
-
       - name: Check Out Repo
         uses: actions/checkout@v4
 
+      - name: Create Release for new Tag
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: PMM-Util ${{ github.event.ref }}
+          prerelease: false
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install setuptools wheel twine
           pip install --no-cache-dir --upgrade --requirement requirements.txt
 
       - name: Build and publish
